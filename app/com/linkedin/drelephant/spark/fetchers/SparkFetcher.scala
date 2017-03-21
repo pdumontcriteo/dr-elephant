@@ -19,12 +19,11 @@ package com.linkedin.drelephant.spark.fetchers
 import scala.async.Async
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.{Duration, SECONDS}
-import scala.util.Try
 import scala.util.control.NonFatal
 
 import com.linkedin.drelephant.analysis.{AnalyticJob, ElephantFetcher}
 import com.linkedin.drelephant.configurations.fetcher.FetcherConfigurationData
-import com.linkedin.drelephant.spark.data.{SparkApplicationData, SparkLogDerivedData, SparkRestDerivedData}
+import com.linkedin.drelephant.spark.data.SparkApplicationData
 import com.linkedin.drelephant.util.SparkUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.log4j.Logger
@@ -61,11 +60,18 @@ class SparkFetcher(fetcherConfigurationData: FetcherConfigurationData)
     if (eventLogEnabled) Some(new SparkLogClient(hadoopConfiguration, sparkConf)) else None
   }
 
+  private[fetchers] lazy val useRestForLogs: Boolean = {
+    fetcherConfigurationData.getParamMap
+        .getOrDefault("use_rest_for_eventlogs", "false")
+        .toBoolean
+  }
+
   override def fetchData(analyticJob: AnalyticJob): SparkApplicationData = {
     val appId = analyticJob.getAppId
     logger.info(s"Fetching data for ${appId}")
     try {
-      Await.result(doFetchData(sparkRestClient, sparkLogClient, appId), DEFAULT_TIMEOUT)
+      Await.result(doFetchData(sparkRestClient, sparkLogClient, appId, useRestForLogs),
+        DEFAULT_TIMEOUT)
     } catch {
       case NonFatal(e) =>
         logger.error(s"Failed fetching data for ${appId}", e)
@@ -83,17 +89,22 @@ object SparkFetcher {
   private def doFetchData(
     sparkRestClient: SparkRestClient,
     sparkLogClient: Option[SparkLogClient],
-    appId: String
+    appId: String,
+    fetchLogsViaRest: Boolean
   )(
     implicit ec: ExecutionContext
   ): Future[SparkApplicationData] = async {
-    val restDerivedData = await(sparkRestClient.fetchData(appId))
+    val restDerivedData = await(sparkRestClient.fetchRestData(appId))
     val lastAttemptId = restDerivedData.applicationInfo.attempts.maxBy { _.startTime }.attemptId
-
-    // Would use .map but await doesn't like that construction.
-    val logDerivedData = sparkLogClient match {
-      case Some(sparkLogClient) => Some(await(sparkLogClient.fetchData(appId, lastAttemptId)))
-      case None => None
+    val logDerivedData = if (fetchLogsViaRest) {
+      await(sparkRestClient.fetchLogData(appId, lastAttemptId))
+    } else {
+      // Would use .map but await doesn't like that construction.
+      sparkLogClient match {
+        case Some(sparkLogClient) =>
+          Some(await(sparkLogClient.fetchData(appId, lastAttemptId)))
+        case None => None
+      }
     }
 
     SparkApplicationData(appId, restDerivedData, logDerivedData)

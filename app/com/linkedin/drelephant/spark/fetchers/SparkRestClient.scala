@@ -16,24 +16,28 @@
 
 package com.linkedin.drelephant.spark.fetchers
 
+import java.io.BufferedInputStream
 import java.net.URI
 import java.text.SimpleDateFormat
+import java.util.zip.{ZipEntry, ZipInputStream}
 import java.util.{Calendar, SimpleTimeZone}
 
 import scala.async.Async
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
-
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
-import com.linkedin.drelephant.spark.data.SparkRestDerivedData
-import com.linkedin.drelephant.spark.fetchers.statusapiv1.{ApplicationAttemptInfo, ApplicationInfo, ExecutorSummary, JobData, StageData}
+import com.linkedin.drelephant.spark.data.{SparkLogDerivedData, SparkRestDerivedData}
+import com.linkedin.drelephant.spark.fetchers.statusapiv1.{ApplicationInfo, ExecutorSummary, JobData, StageData}
 import javax.ws.rs.client.{Client, ClientBuilder, WebTarget}
 import javax.ws.rs.core.MediaType
+
+import org.apache.hadoop.fs.Path
 import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
 
+import scala.collection.mutable
 
 /**
   * A client for getting data from the Spark monitoring REST API, e.g. <https://spark.apache.org/docs/1.4.1/monitoring.html#rest-api>.
@@ -67,16 +71,16 @@ class SparkRestClient(sparkConf: SparkConf) {
 
   private val apiTarget: WebTarget = client.target(historyServerUri).path(API_V1_MOUNT_PATH)
 
-  def fetchData(appId: String)(implicit ec: ExecutionContext): Future[SparkRestDerivedData] = {
+  def fetchRestData(appId: String)(implicit ec: ExecutionContext): Future[SparkRestDerivedData] = {
     val appTarget = apiTarget.path(s"applications/${appId}")
     logger.info(s"calling REST API at ${appTarget.getUri}")
 
     val applicationInfo = getApplicationInfo(appTarget)
 
     // Limit scope of async.
+    val lastAttemptId = applicationInfo.attempts.maxBy {_.startTime}.attemptId
+    val attemptTarget = lastAttemptId.map(appTarget.path).getOrElse(appTarget)
     async {
-      val lastAttemptId = applicationInfo.attempts.maxBy {_.startTime}.attemptId
-      val attemptTarget = lastAttemptId.map(appTarget.path).getOrElse(appTarget)
       val futureJobDatas = async { getJobDatas(attemptTarget) }
       val futureStageDatas = async { getStageDatas(attemptTarget) }
       val futureExecutorSummaries = async { getExecutorSummaries(attemptTarget) }
@@ -89,12 +93,54 @@ class SparkRestClient(sparkConf: SparkConf) {
     }
   }
 
+  def fetchLogData(appId: String, attemptId: Option[String])(
+      implicit ec: ExecutionContext
+  ): Future[Option[SparkLogDerivedData]] = {
+    val appTarget = apiTarget.path(s"applications/${appId}")
+    logger.info(s"calling REST API at ${appTarget.getUri}")
+
+    val logPrefix = attemptId.map(id => s"${appId}_$id").getOrElse(appId)
+    async {
+      resource.managed { getApplicationLogs(appTarget) }.acquireAndGet { zis =>
+        var entry: ZipEntry = null
+        do {
+          zis.closeEntry()
+          entry = zis.getNextEntry
+        } while (!(entry == null || entry.getName.startsWith(logPrefix)))
+
+        if (entry == null) {
+          logger.warn(
+            s"failed to resolve log starting with $logPrefix for ${appTarget.getUri}")
+          None
+        } else {
+          val codec = SparkLogClient.compressionCodecForLogName(sparkConf, entry.getName)
+          Some(SparkLogClient.findDerivedData(
+            codec.map { _.compressedInputStream(zis) }.getOrElse(zis)))
+        }
+      }
+    }
+  }
+
   private def getApplicationInfo(appTarget: WebTarget): ApplicationInfo = {
     try {
       get(appTarget, SparkRestObjectMapper.readValue[ApplicationInfo])
     } catch {
       case NonFatal(e) => {
         logger.error(s"error reading applicationInfo ${appTarget.getUri}", e)
+        throw e
+      }
+    }
+  }
+
+  private def getApplicationLogs(appTarget: WebTarget): ZipInputStream = {
+    val target = appTarget.path("logs")
+    try {
+      val is = target.request(MediaType.APPLICATION_OCTET_STREAM)
+          .get(classOf[java.io.InputStream])
+      new ZipInputStream(new BufferedInputStream(is))
+    } catch {
+      case NonFatal(e) => {
+        logger.error(s"error reading logs ${target.getUri}", e)
         throw e
       }
     }

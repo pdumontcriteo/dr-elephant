@@ -76,7 +76,7 @@ class SparkLogClient(hadoopConfiguration: Configuration, sparkConf: SparkConf) {
     val logPath = getLogPath(webhdfsEventLogUri, appId, attemptId, compressionCodecShortName)
     logger.info(s"looking for logs at ${logPath}")
 
-    val codec = compressionCodecForLogPath(sparkConf, logPath)
+    val codec = compressionCodecForLogName(sparkConf, logPath.getName)
 
     // Limit scope of async.
     async {
@@ -189,10 +189,10 @@ object SparkLogClient {
     new BufferedInputStream(fs.open(logPath))
   }
 
-  private def compressionCodecForLogPath(conf: SparkConf, logPath: Path): Option[CompressionCodec] = {
+  private[fetchers] def compressionCodecForLogName(conf: SparkConf, logName: String): Option[CompressionCodec] = {
     // Compression codec is encoded as an extension, e.g. app_123.lzf
     // Since we sanitize the app ID to not include periods, it is safe to split on it
-    val logBaseName = logPath.getName.stripSuffix(IN_PROGRESS)
+    val logBaseName = logName.stripSuffix(IN_PROGRESS)
     logBaseName.split("\\.").tail.lastOption.map { codecName =>
       compressionCodecMap.getOrElseUpdate(codecName, loadCompressionCodec(conf, codecName))
     }
