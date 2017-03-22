@@ -68,7 +68,9 @@ class SparkRestClient(sparkConf: SparkConf) {
 
   private val apiTarget: WebTarget = client.target(historyServerUri).path(API_V1_MOUNT_PATH)
 
-  def fetchData(appId: String, fetchLogs: Boolean)(implicit ec: ExecutionContext): Future[SparkRestDerivedData] = {
+  def fetchData(appId: String, fetchLogs: Boolean = false)(
+    implicit ec: ExecutionContext
+  ): Future[SparkRestDerivedData] = {
     val appTarget = apiTarget.path(s"applications/${appId}")
     logger.info(s"calling REST API at ${appTarget.getUri}")
 
