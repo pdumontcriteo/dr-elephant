@@ -33,11 +33,8 @@ import com.linkedin.drelephant.spark.fetchers.statusapiv1.{ApplicationInfo, Exec
 import javax.ws.rs.client.{Client, ClientBuilder, WebTarget}
 import javax.ws.rs.core.MediaType
 
-import org.apache.hadoop.fs.Path
 import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
-
-import scala.collection.mutable
 
 /**
   * A client for getting data from the Spark monitoring REST API, e.g. <https://spark.apache.org/docs/1.4.1/monitoring.html#rest-api>.
