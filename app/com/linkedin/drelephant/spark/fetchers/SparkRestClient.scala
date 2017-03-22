@@ -71,7 +71,7 @@ class SparkRestClient(sparkConf: SparkConf) {
 
   private val apiTarget: WebTarget = client.target(historyServerUri).path(API_V1_MOUNT_PATH)
 
-  def fetchRestData(appId: String)(implicit ec: ExecutionContext): Future[SparkRestDerivedData] = {
+  def fetchData(appId: String, fetchLogs: Boolean)(implicit ec: ExecutionContext): Future[SparkRestDerivedData] = {
     val appTarget = apiTarget.path(s"applications/${appId}")
     logger.info(s"calling REST API at ${appTarget.getUri}")
 
@@ -84,40 +84,17 @@ class SparkRestClient(sparkConf: SparkConf) {
       val futureJobDatas = async { getJobDatas(attemptTarget) }
       val futureStageDatas = async { getStageDatas(attemptTarget) }
       val futureExecutorSummaries = async { getExecutorSummaries(attemptTarget) }
+      val futureLogData = if (fetchLogs) {
+        async { getLogData(attemptTarget)}
+      } else Future.successful(None)
+
       SparkRestDerivedData(
         applicationInfo,
         await(futureJobDatas),
         await(futureStageDatas),
-        await(futureExecutorSummaries)
+        await(futureExecutorSummaries),
+        await(futureLogData)
       )
-    }
-  }
-
-  def fetchLogData(appId: String, attemptId: Option[String])(
-      implicit ec: ExecutionContext
-  ): Future[Option[SparkLogDerivedData]] = {
-    val appTarget = apiTarget.path(s"applications/${appId}")
-    logger.info(s"calling REST API at ${appTarget.getUri}")
-
-    val logPrefix = attemptId.map(id => s"${appId}_$id").getOrElse(appId)
-    async {
-      resource.managed { getApplicationLogs(appTarget) }.acquireAndGet { zis =>
-        var entry: ZipEntry = null
-        do {
-          zis.closeEntry()
-          entry = zis.getNextEntry
-        } while (!(entry == null || entry.getName.startsWith(logPrefix)))
-
-        if (entry == null) {
-          logger.warn(
-            s"failed to resolve log starting with $logPrefix for ${appTarget.getUri}")
-          None
-        } else {
-          val codec = SparkLogClient.compressionCodecForLogName(sparkConf, entry.getName)
-          Some(SparkLogClient.findDerivedData(
-            codec.map { _.compressedInputStream(zis) }.getOrElse(zis)))
-        }
-      }
     }
   }
 
@@ -178,6 +155,31 @@ class SparkRestClient(sparkConf: SparkConf) {
       case NonFatal(e) => {
         logger.error(s"error reading executorSummary ${target.getUri}", e)
         throw e
+      }
+    }
+  }
+
+  private def getLogData(attemptTarget: WebTarget): Option[SparkLogDerivedData] = {
+    val target = attemptTarget.path("logs")
+    logger.info(s"calling REST API at ${target.getUri}")
+
+    // The logs are stored in a ZIP archive with a single entry.
+    // It should be named as "$logPrefix.$archiveExtension", but
+    // we trust Spark to get it right.
+    resource.managed { getApplicationLogs(target) }.acquireAndGet { zis =>
+      var entry: ZipEntry = null
+      do {
+        zis.closeEntry()
+        entry = zis.getNextEntry
+      } while (entry != null)
+
+      if (entry == null) {
+        logger.warn(s"failed to resolve log for ${target.getUri}")
+        None
+      } else {
+        val codec = SparkLogClient.compressionCodecForLogName(sparkConf, entry.getName)
+        Some(SparkLogClient.findDerivedData(
+          codec.map { _.compressedInputStream(zis) }.getOrElse(zis)))
       }
     }
   }

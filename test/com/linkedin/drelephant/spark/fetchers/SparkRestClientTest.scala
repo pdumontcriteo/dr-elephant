@@ -67,7 +67,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchRestData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be(None)
@@ -101,7 +101,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchRestData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be(None)
@@ -135,7 +135,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"http://${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchRestData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be(None)
