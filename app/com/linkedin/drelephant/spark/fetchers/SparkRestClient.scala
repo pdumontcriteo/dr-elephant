@@ -108,6 +108,31 @@ class SparkRestClient(sparkConf: SparkConf) {
     }
   }
 
+  private def getLogData(attemptTarget: WebTarget): Option[SparkLogDerivedData] = {
+    val target = attemptTarget.path("logs")
+    logger.info(s"calling REST API at ${target.getUri} to get eventlogs")
+
+    // The logs are stored in a ZIP archive with a single entry.
+    // It should be named as "$logPrefix.$archiveExtension", but
+    // we trust Spark to get it right.
+    resource.managed { getApplicationLogs(target) }.acquireAndGet { zis =>
+      var entry: ZipEntry = null
+      do {
+        zis.closeEntry()
+        entry = zis.getNextEntry
+      } while (entry != null)
+
+      if (entry == null) {
+        logger.warn(s"failed to resolve log for ${target.getUri}")
+        None
+      } else {
+        val codec = SparkLogClient.compressionCodecForLogName(sparkConf, entry.getName)
+        Some(SparkLogClient.findDerivedData(
+          codec.map { _.compressedInputStream(zis) }.getOrElse(zis)))
+      }
+    }
+  }
+
   private def getApplicationLogs(appTarget: WebTarget): ZipInputStream = {
     val target = appTarget.path("logs")
     try {
@@ -154,31 +179,6 @@ class SparkRestClient(sparkConf: SparkConf) {
       case NonFatal(e) => {
         logger.error(s"error reading executorSummary ${target.getUri}", e)
         throw e
-      }
-    }
-  }
-
-  private def getLogData(attemptTarget: WebTarget): Option[SparkLogDerivedData] = {
-    val target = attemptTarget.path("logs")
-    logger.info(s"calling REST API at ${target.getUri}")
-
-    // The logs are stored in a ZIP archive with a single entry.
-    // It should be named as "$logPrefix.$archiveExtension", but
-    // we trust Spark to get it right.
-    resource.managed { getApplicationLogs(target) }.acquireAndGet { zis =>
-      var entry: ZipEntry = null
-      do {
-        zis.closeEntry()
-        entry = zis.getNextEntry
-      } while (entry != null)
-
-      if (entry == null) {
-        logger.warn(s"failed to resolve log for ${target.getUri}")
-        None
-      } else {
-        val codec = SparkLogClient.compressionCodecForLogName(sparkConf, entry.getName)
-        Some(SparkLogClient.findDerivedData(
-          codec.map { _.compressedInputStream(zis) }.getOrElse(zis)))
       }
     }
   }
