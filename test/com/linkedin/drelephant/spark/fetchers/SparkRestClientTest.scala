@@ -16,24 +16,27 @@
 
 package com.linkedin.drelephant.spark.fetchers
 
-import java.net.URI
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
 import java.text.SimpleDateFormat
+import java.util.zip.{ZipEntry, ZipOutputStream}
 import java.util.{Calendar, Date, SimpleTimeZone}
 
 import scala.concurrent.ExecutionContext
 import scala.util.Try
-
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.linkedin.drelephant.spark.fetchers.statusapiv1.{ApplicationAttemptInfo, ApplicationInfo, ExecutorSummary, JobData, StageData}
 import javax.ws.rs.{GET, Path, PathParam, Produces}
-import javax.ws.rs.client.WebTarget
-import javax.ws.rs.core.{Application, MediaType}
+import javax.ws.rs.core.{Application, MediaType, Response}
 import javax.ws.rs.ext.ContextResolver
+
+import com.google.common.io.Resources
+import com.ning.compress.lzf.LZFEncoder
 import org.apache.spark.SparkConf
 import org.glassfish.jersey.client.ClientConfig
 import org.glassfish.jersey.server.ResourceConfig
 import org.glassfish.jersey.test.{JerseyTest, TestProperties}
+import org.json4s.DefaultFormats
 import org.scalatest.{AsyncFunSpec, Matchers}
 import org.scalatest.compatible.Assertion
 
@@ -56,6 +59,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
               .register(classOf[FetchClusterModeDataFixtures.JobsResource])
               .register(classOf[FetchClusterModeDataFixtures.StagesResource])
               .register(classOf[FetchClusterModeDataFixtures.ExecutorsResource])
+              .register(classOf[FetchClusterModeDataFixtures.LogsResource])
           case config => config
         }
       }
@@ -70,12 +74,18 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
-        restDerivedData.jobDatas should not be(None)
-        restDerivedData.stageDatas should not be(None)
-        restDerivedData.executorSummaries should not be(None)
+        restDerivedData.jobDatas should not be (None)
+        restDerivedData.stageDatas should not be (None)
+        restDerivedData.executorSummaries should not be (None)
+        restDerivedData.logDerivedData should be(None)
+      } flatMap {
+        case assertion: Try[Assertion] => assertion
+        case _ =>
+          sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID, fetchLogs = true)
+            .map { _.logDerivedData should not be(None) }
       } andThen { case assertion: Try[Assertion] =>
-          fakeJerseyServer.tearDown()
-          assertion
+        fakeJerseyServer.tearDown()
+        assertion
       }
     }
 
@@ -200,6 +210,9 @@ object SparkRestClientTest {
 
       @Path("applications/{appId}/{attemptId}/executors")
       def getExecutors(): ExecutorsResource = new ExecutorsResource()
+
+      @Path("applications/{appId}/{attemptId}/logs")
+      def getLogs(): LogsResource = new LogsResource()
     }
 
     @Produces(Array(MediaType.APPLICATION_JSON))
@@ -239,6 +252,16 @@ object SparkRestClientTest {
       @GET
       def getExecutors(@PathParam("appId") appId: String, @PathParam("attemptId") attemptId: String): Seq[ExecutorSummary] =
         if (attemptId == "2") Seq.empty else throw new Exception()
+    }
+
+    @Produces(Array(MediaType.APPLICATION_OCTET_STREAM))
+    class LogsResource {
+      @GET
+      def getLogs(@PathParam("appId") appId: String, @PathParam("attemptId") attemptId: String): Response = {
+        if (attemptId == "2") {
+          Response.ok(newFakeLog(appId, attemptId)).build()
+        } else throw new Exception()
+      }
     }
   }
 
@@ -312,4 +335,19 @@ object SparkRestClientTest {
     sparkUser = "foo",
     completed = true
   )
+
+  private implicit val formats: DefaultFormats = DefaultFormats
+
+  def newFakeLog(appId: String, attempId: String): InputStream = {
+    val os = new ByteArrayOutputStream()
+    val zos = new ZipOutputStream(os)
+    zos.putNextEntry(new ZipEntry("$appId_$attemptId.lzf"))
+    val events = Resources.toByteArray(Resources.getResource("spark_event_logs/event_log_2"))
+    // LZFEncoder instead of Snappy, because of xerial/snappy-java#76.
+    zos.write(LZFEncoder.encode(events))
+    zos.closeEntry()
+    zos.close()
+
+    new ByteArrayInputStream(os.toByteArray)
+  }
 }

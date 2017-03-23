@@ -19,7 +19,6 @@ package com.linkedin.drelephant.spark.fetchers
 import java.io.{File, FileOutputStream, InputStream, OutputStream}
 import java.util.Date
 
-import scala.collection.JavaConverters
 import scala.concurrent.{ExecutionContext, Future}
 
 import com.google.common.io.Files
@@ -152,14 +151,34 @@ class SparkFetcherTest extends FunSpec with Matchers {
       }
       an[IllegalStateException] should be thrownBy { sparkFetcher.sparkConf }
     }
+
+    it("fetches logs via WebHDFS by default") {
+      val fetcherConfigurationData = newFakeFetcherConfigurationData()
+      val sparkFetcher = new SparkFetcher(fetcherConfigurationData)
+      sparkFetcher.useRestForLogs should be(false)
+    }
+
+    it("fetches logs via REST if use_rest_for_eventlogs is true") {
+      val fetcherConfigurationData = newFakeFetcherConfigurationData(
+        Map("use_rest_for_eventlogs" -> "true"))
+      val sparkFetcher = new SparkFetcher(fetcherConfigurationData)
+      sparkFetcher.useRestForLogs should be(true)
+    }
+
+    it("fetches logs via REST if use_rest_for_eventlogs is false") {
+      val fetcherConfigurationData = newFakeFetcherConfigurationData(
+        Map("use_rest_for_eventlogs" -> "false"))
+      val sparkFetcher = new SparkFetcher(fetcherConfigurationData)
+      sparkFetcher.useRestForLogs should be(false)
+    }
   }
 }
 
 object SparkFetcherTest {
-  import JavaConverters._
+  import scala.collection.JavaConverters._
 
-  def newFakeFetcherConfigurationData(): FetcherConfigurationData =
-    new FetcherConfigurationData(classOf[SparkFetcher].getName, new ApplicationType("SPARK"), Map.empty.asJava)
+  def newFakeFetcherConfigurationData(paramMap: Map[String, String] = Map.empty): FetcherConfigurationData =
+    new FetcherConfigurationData(classOf[SparkFetcher].getName, new ApplicationType("SPARK"), paramMap.asJava)
 
   def newFakeApplicationAttemptInfo(
     attemptId: Option[String],

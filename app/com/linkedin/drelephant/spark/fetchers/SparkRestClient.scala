@@ -19,7 +19,7 @@ package com.linkedin.drelephant.spark.fetchers
 import java.io.BufferedInputStream
 import java.net.URI
 import java.text.SimpleDateFormat
-import java.util.zip.{ZipEntry, ZipInputStream}
+import java.util.zip.ZipInputStream
 import java.util.{Calendar, SimpleTimeZone}
 
 import scala.async.Async
@@ -119,12 +119,7 @@ class SparkRestClient(sparkConf: SparkConf) {
     // It should be named as "$logPrefix.$archiveExtension", but
     // we trust Spark to get it right.
     resource.managed { getApplicationLogs(target) }.acquireAndGet { zis =>
-      var entry: ZipEntry = null
-      do {
-        zis.closeEntry()
-        entry = zis.getNextEntry
-      } while (entry != null)
-
+      val entry = zis.getNextEntry
       if (entry == null) {
         logger.warn(s"failed to resolve log for ${target.getUri}")
         None
@@ -136,15 +131,14 @@ class SparkRestClient(sparkConf: SparkConf) {
     }
   }
 
-  private def getApplicationLogs(appTarget: WebTarget): ZipInputStream = {
-    val target = appTarget.path("logs")
+  private def getApplicationLogs(logTarget: WebTarget): ZipInputStream = {
     try {
-      val is = target.request(MediaType.APPLICATION_OCTET_STREAM)
+      val is = logTarget.request(MediaType.APPLICATION_OCTET_STREAM)
           .get(classOf[java.io.InputStream])
       new ZipInputStream(new BufferedInputStream(is))
     } catch {
       case NonFatal(e) => {
-        logger.error(s"error reading logs ${target.getUri}", e)
+        logger.error(s"error reading logs ${logTarget.getUri}", e)
         throw e
       }
     }
