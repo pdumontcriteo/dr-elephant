@@ -61,9 +61,8 @@ class SparkFetcher(fetcherConfigurationData: FetcherConfigurationData)
   }
 
   private[fetchers] lazy val useRestForLogs: Boolean = {
-    fetcherConfigurationData.getParamMap
-        .getOrDefault("use_rest_for_eventlogs", "false")
-        .toBoolean
+    Some(fetcherConfigurationData.getParamMap.get("use_rest_for_eventlogs"))
+      .exists(_.toBoolean)
   }
 
   override def fetchData(analyticJob: AnalyticJob): SparkApplicationData = {
