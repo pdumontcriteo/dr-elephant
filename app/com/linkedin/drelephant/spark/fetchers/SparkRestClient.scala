@@ -76,9 +76,12 @@ class SparkRestClient(sparkConf: SparkConf) {
 
     val applicationInfo = getApplicationInfo(appTarget)
 
-    // Limit scope of async.
+    // These are pure and cannot fail, therefore it is safe to have
+    // them outside of the async block.
     val lastAttemptId = applicationInfo.attempts.maxBy {_.startTime}.attemptId
     val attemptTarget = lastAttemptId.map(appTarget.path).getOrElse(appTarget)
+
+    // Limit the scope of async.
     async {
       val futureJobDatas = async { getJobDatas(attemptTarget) }
       val futureStageDatas = async { getStageDatas(attemptTarget) }
