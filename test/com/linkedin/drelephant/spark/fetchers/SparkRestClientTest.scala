@@ -81,8 +81,11 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       } flatMap {
         case assertion: Try[Assertion] => assertion
         case _ =>
+          val expectedLogDerivedData =
+            SparkLogClient.findDerivedData(new ByteArrayInputStream(EVENT_LOG_2))
+
           sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID, fetchLogs = true)
-            .map { _.logDerivedData should not be(None) }
+            .map { _.logDerivedData should be(Some(expectedLogDerivedData)) }
       } andThen { case assertion: Try[Assertion] =>
         fakeJerseyServer.tearDown()
         assertion
@@ -100,6 +103,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
               .register(classOf[FetchClientModeDataFixtures.JobsResource])
               .register(classOf[FetchClientModeDataFixtures.StagesResource])
               .register(classOf[FetchClientModeDataFixtures.ExecutorsResource])
+              .register(classOf[FetchClientModeDataFixtures.LogsResource])
           case config => config
         }
       }
@@ -117,6 +121,15 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
         restDerivedData.jobDatas should not be(None)
         restDerivedData.stageDatas should not be(None)
         restDerivedData.executorSummaries should not be(None)
+        restDerivedData.logDerivedData should be(None)
+      } flatMap {
+        case assertion: Try[Assertion] => assertion
+        case _ =>
+          val expectedLogDerivedData =
+            SparkLogClient.findDerivedData(new ByteArrayInputStream(EVENT_LOG_2))
+
+          sparkRestClient.fetchData(FetchClientModeDataFixtures.APP_ID, fetchLogs = true)
+            .map { _.logDerivedData should be(Some(expectedLogDerivedData)) }
       } andThen { case assertion: Try[Assertion] =>
         fakeJerseyServer.tearDown()
         assertion
@@ -259,7 +272,7 @@ object SparkRestClientTest {
       @GET
       def getLogs(@PathParam("appId") appId: String, @PathParam("attemptId") attemptId: String): Response = {
         if (attemptId == "2") {
-          Response.ok(newFakeLog(appId, attemptId)).build()
+          Response.ok(newFakeLog(appId, Some(attemptId))).build()
         } else throw new Exception()
       }
     }
@@ -282,6 +295,9 @@ object SparkRestClientTest {
 
       @Path("applications/{appId}/executors")
       def getExecutors(): ExecutorsResource = new ExecutorsResource()
+
+      @Path("applications/{appId}/logs")
+      def getLogs(): LogsResource = new LogsResource()
     }
 
     @Produces(Array(MediaType.APPLICATION_JSON))
@@ -322,6 +338,14 @@ object SparkRestClientTest {
       def getExecutors(@PathParam("appId") appId: String): Seq[ExecutorSummary] =
         Seq.empty
     }
+
+    @Produces(Array(MediaType.APPLICATION_OCTET_STREAM))
+    class LogsResource {
+      @GET
+      def getLogs(@PathParam("appId") appId: String): Response = {
+        Response.ok(newFakeLog(appId, None)).build()
+      }
+    }
   }
 
   def newFakeApplicationAttemptInfo(
@@ -336,15 +360,16 @@ object SparkRestClientTest {
     completed = true
   )
 
-  private implicit val formats: DefaultFormats = DefaultFormats
+  private val EVENT_LOG_2 = Resources.toByteArray(
+    Resources.getResource("spark_event_logs/event_log_2"))
 
-  def newFakeLog(appId: String, attempId: String): InputStream = {
+  def newFakeLog(appId: String, attemptId: Option[String]): InputStream = {
     val os = new ByteArrayOutputStream()
     val zos = new ZipOutputStream(os)
-    zos.putNextEntry(new ZipEntry("$appId_$attemptId.lzf"))
-    val events = Resources.toByteArray(Resources.getResource("spark_event_logs/event_log_2"))
+    val name = attemptId.map(id => s"${appId}_$id").getOrElse(appId) + ".lzf"
+    zos.putNextEntry(new ZipEntry(name))
     // LZFEncoder instead of Snappy, because of xerial/snappy-java#76.
-    zos.write(LZFEncoder.encode(events))
+    zos.write(LZFEncoder.encode(EVENT_LOG_2))
     zos.closeEntry()
     zos.close()
 
