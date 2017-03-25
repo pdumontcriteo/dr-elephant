@@ -79,14 +79,14 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
         restDerivedData.executorSummaries should not be (None)
         restDerivedData.logDerivedData should be(None)
       } flatMap {
-        case assertion: Try[Assertion] => assertion
+        case assertion: Try[_] => assertion
         case _ =>
           val expectedLogDerivedData =
             SparkLogClient.findDerivedData(new ByteArrayInputStream(EVENT_LOG_2))
 
           sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID, fetchLogs = true)
             .map { _.logDerivedData should be(Some(expectedLogDerivedData)) }
-      } andThen { case assertion: Try[Assertion] =>
+      } andThen { case assertion: Try[_] =>
         fakeJerseyServer.tearDown()
         assertion
       }
@@ -123,7 +123,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
         restDerivedData.executorSummaries should not be(None)
         restDerivedData.logDerivedData should be(None)
       } flatMap {
-        case assertion: Try[Assertion] => assertion
+        case assertion: Try[_] => assertion
         case _ =>
           val expectedLogDerivedData =
             SparkLogClient.findDerivedData(new ByteArrayInputStream(EVENT_LOG_2))
