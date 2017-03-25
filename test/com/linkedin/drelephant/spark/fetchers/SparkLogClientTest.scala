@@ -16,13 +16,13 @@
 
 package com.linkedin.drelephant.spark.fetchers
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
+import java.io.{ByteArrayInputStream, InputStream}
 import java.net.URI
 
 import scala.concurrent.ExecutionContext
-import com.google.common.io.Resources
-import com.ning.compress.lzf.LZFOutputStream
 
+import com.google.common.io.Resources
+import com.ning.compress.lzf.LZFEncoder
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path, PositionedReadable}
 import org.apache.hadoop.io.compress.CompressionInputStream
@@ -69,18 +69,14 @@ class SparkLogClientTest extends AsyncFunSpec with Matchers with MockitoSugar {
       val appId = "application_1"
       val attemptId = Some("1")
 
-      val testResourceIn = getClass.getClassLoader.getResourceAsStream("spark_event_logs/event_log_2")
-      val byteOut = new ByteArrayOutputStream()
-      val lzfOut = new LZFOutputStream(byteOut)
-      managedCopyInputStreamToOutputStream(testResourceIn, lzfOut)
-
       val sparkLogClient = new SparkLogClient(hadoopConfiguration, sparkConf) {
         override lazy val fs: FileSystem = {
           val fs = mock[FileSystem]
           val expectedPath = new Path("webhdfs://nn1.grid.example.com:50070/logs/spark/application_1_1.lzf")
           BDDMockito.given(fs.exists(expectedPath)).willReturn(true)
           BDDMockito.given(fs.open(expectedPath)).willReturn(
-            new FSDataInputStream(new FakeCompressionInputStream(new ByteArrayInputStream(byteOut.toByteArray)))
+            new FSDataInputStream(new FakeCompressionInputStream(
+              new ByteArrayInputStream(LZFEncoder.encode(EVENT_LOG_2))))
           )
           fs
         }
@@ -112,20 +108,6 @@ object SparkLogClientTest {
     override def resetState(): Unit = ???
   }
 
-  def managedCopyInputStreamToOutputStream(in: => InputStream, out: => OutputStream): Unit = {
-    for {
-      input <- resource.managed(in)
-      output <- resource.managed(out)
-    } {
-      val buffer = new Array[Byte](512)
-      def read(): Unit = input.read(buffer) match {
-        case -1 => ()
-        case bytesRead => {
-          output.write(buffer, 0, bytesRead)
-          read()
-        }
-      }
-      read()
-    }
-  }
+  private val EVENT_LOG_2 = Resources.toByteArray(
+    Resources.getResource("spark_event_logs/event_log_2"))
 }

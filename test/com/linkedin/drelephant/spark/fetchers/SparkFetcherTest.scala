@@ -16,12 +16,12 @@
 
 package com.linkedin.drelephant.spark.fetchers
 
-import java.io.{File, FileOutputStream, InputStream, OutputStream}
+import java.io.File
 import java.util.Date
 
 import scala.concurrent.{ExecutionContext, Future}
 
-import com.google.common.io.Files
+import com.google.common.io.{Files, Resources}
 import com.linkedin.drelephant.analysis.{AnalyticJob, ApplicationType}
 import com.linkedin.drelephant.configurations.fetcher.FetcherConfigurationData
 import com.linkedin.drelephant.spark.data.{SparkLogDerivedData, SparkRestDerivedData}
@@ -97,53 +97,38 @@ class SparkFetcherTest extends FunSpec with Matchers {
     }
 
     it("gets its SparkConf when SPARK_CONF_DIR is set") {
-      val tempDir = Files.createTempDir()
-
-      val testResourceIn = getClass.getClassLoader.getResourceAsStream("spark-defaults.conf")
-      val testResourceFile = new File(tempDir, "spark-defaults.conf")
-      val testResourceOut = new FileOutputStream(testResourceFile)
-      managedCopyInputStreamToOutputStream(testResourceIn, testResourceOut)
-
-      val fetcherConfigurationData = newFakeFetcherConfigurationData()
-      val sparkFetcher = new SparkFetcher(fetcherConfigurationData) {
-        override lazy val sparkUtils = new SparkUtils() {
-          override val defaultEnv = Map("SPARK_CONF_DIR" -> tempDir.toString)
+      withFakeSparkHome { sparkHome =>
+        val fetcherConfigurationData = newFakeFetcherConfigurationData()
+        val sparkFetcher = new SparkFetcher(fetcherConfigurationData) {
+          override lazy val sparkUtils = new SparkUtils() {
+            override val defaultEnv = Map(
+              "SPARK_CONF_DIR" -> new File(sparkHome, "conf").toString)
+          }
         }
+
+        val sparkConf = sparkFetcher.sparkConf
+        sparkConf.get("spark.yarn.historyServer.address") should be("jh1.grid.example.com:18080")
+        sparkConf.get("spark.eventLog.enabled") should be("true")
+        sparkConf.get("spark.eventLog.compress") should be("true")
+        sparkConf.get("spark.eventLog.dir") should be("hdfs://nn1.grid.example.com:9000/logs/spark")
       }
-      val sparkConf = sparkFetcher.sparkConf
-
-      tempDir.delete()
-
-      sparkConf.get("spark.yarn.historyServer.address") should be("jh1.grid.example.com:18080")
-      sparkConf.get("spark.eventLog.enabled") should be("true")
-      sparkConf.get("spark.eventLog.compress") should be("true")
-      sparkConf.get("spark.eventLog.dir") should be("hdfs://nn1.grid.example.com:9000/logs/spark")
     }
 
     it("gets its SparkConf when SPARK_HOME is set") {
-      val tempDir = Files.createTempDir()
-      val tempConfDir = new File(tempDir, "conf")
-      tempConfDir.mkdir()
-
-      val testResourceIn = getClass.getClassLoader.getResourceAsStream("spark-defaults.conf")
-      val testResourceFile = new File(tempConfDir, "spark-defaults.conf")
-      val testResourceOut = new FileOutputStream(testResourceFile)
-      managedCopyInputStreamToOutputStream(testResourceIn, testResourceOut)
-
-      val fetcherConfigurationData = newFakeFetcherConfigurationData()
-      val sparkFetcher = new SparkFetcher(fetcherConfigurationData) {
-        override lazy val sparkUtils = new SparkUtils() {
-          override val defaultEnv = Map("SPARK_HOME" -> tempDir.toString)
+      withFakeSparkHome { sparkHome =>
+        val fetcherConfigurationData = newFakeFetcherConfigurationData()
+        val sparkFetcher = new SparkFetcher(fetcherConfigurationData) {
+          override lazy val sparkUtils = new SparkUtils() {
+            override val defaultEnv = Map("SPARK_HOME" -> sparkHome.toString)
+          }
         }
+
+        val sparkConf = sparkFetcher.sparkConf
+        sparkConf.get("spark.yarn.historyServer.address") should be("jh1.grid.example.com:18080")
+        sparkConf.get("spark.eventLog.enabled") should be("true")
+        sparkConf.get("spark.eventLog.compress") should be("true")
+        sparkConf.get("spark.eventLog.dir") should be("hdfs://nn1.grid.example.com:9000/logs/spark")
       }
-      val sparkConf = sparkFetcher.sparkConf
-
-      tempDir.delete()
-
-      sparkConf.get("spark.yarn.historyServer.address") should be("jh1.grid.example.com:18080")
-      sparkConf.get("spark.eventLog.enabled") should be("true")
-      sparkConf.get("spark.eventLog.compress") should be("true")
-      sparkConf.get("spark.eventLog.dir") should be("hdfs://nn1.grid.example.com:9000/logs/spark")
     }
 
     it("throws an exception if neither SPARK_CONF_DIR nor SPARK_HOME are set") {
@@ -240,20 +225,19 @@ object SparkFetcherTest {
     sparkLogClient
   }
 
-  def managedCopyInputStreamToOutputStream(in: => InputStream, out: => OutputStream): Unit = {
-    for {
-      input <- resource.managed(in)
-      output <- resource.managed(out)
-    } {
-      val buffer = new Array[Byte](512)
-      def read(): Unit = input.read(buffer) match {
-        case -1 => ()
-        case bytesRead => {
-          output.write(buffer, 0, bytesRead)
-          read()
-        }
-      }
-      read()
+  def withFakeSparkHome(block: File => Unit): Unit = {
+    val sparkHome = Files.createTempDir()
+    val sparkConfDir = new File(sparkHome, "conf")
+    sparkConfDir.mkdir()
+
+    Files.write(
+      Resources.toByteArray(Resources.getResource("spark-defaults.conf")),
+      new File(sparkConfDir, "spark-defaults.conf"))
+
+    try {
+      block(sparkHome)
+    } finally {
+      sparkHome.delete()
     }
   }
 }
