@@ -368,7 +368,6 @@ object SparkRestClientTest {
     val zos = new ZipOutputStream(os)
     val name = attemptId.map(id => s"${appId}_$id").getOrElse(appId) + ".lzf"
     zos.putNextEntry(new ZipEntry(name))
-    // LZFEncoder instead of Snappy, because of xerial/snappy-java#76.
     zos.write(LZFEncoder.encode(EVENT_LOG_2))
     zos.closeEntry()
     zos.close()

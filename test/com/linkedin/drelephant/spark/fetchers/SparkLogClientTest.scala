@@ -20,6 +20,8 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 import java.net.URI
 
 import scala.concurrent.ExecutionContext
+import com.google.common.io.Resources
+import com.ning.compress.lzf.LZFOutputStream
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path, PositionedReadable}
@@ -28,7 +30,6 @@ import org.apache.spark.SparkConf
 import org.mockito.BDDMockito
 import org.scalatest.{AsyncFunSpec, Matchers}
 import org.scalatest.mockito.MockitoSugar
-import org.xerial.snappy.SnappyOutputStream
 
 class SparkLogClientTest extends AsyncFunSpec with Matchers with MockitoSugar {
   import SparkLogClientTest._
@@ -63,20 +64,20 @@ class SparkLogClientTest extends AsyncFunSpec with Matchers with MockitoSugar {
         new SparkConf()
           .set("spark.eventLog.dir", "hdfs://nn1.grid.example.com:9000/logs/spark")
           .set("spark.eventLog.compress", "true")
-          .set("spark.io.compression.codec", "snappy")
+          .set("spark.io.compression.codec", "lzf")
 
       val appId = "application_1"
       val attemptId = Some("1")
 
       val testResourceIn = getClass.getClassLoader.getResourceAsStream("spark_event_logs/event_log_2")
       val byteOut = new ByteArrayOutputStream()
-      val snappyOut = new SnappyOutputStream(byteOut)
-      managedCopyInputStreamToOutputStream(testResourceIn, snappyOut)
+      val lzfOut = new LZFOutputStream(byteOut)
+      managedCopyInputStreamToOutputStream(testResourceIn, lzfOut)
 
       val sparkLogClient = new SparkLogClient(hadoopConfiguration, sparkConf) {
         override lazy val fs: FileSystem = {
           val fs = mock[FileSystem]
-          val expectedPath = new Path("webhdfs://nn1.grid.example.com:50070/logs/spark/application_1_1.snappy")
+          val expectedPath = new Path("webhdfs://nn1.grid.example.com:50070/logs/spark/application_1_1.lzf")
           BDDMockito.given(fs.exists(expectedPath)).willReturn(true)
           BDDMockito.given(fs.open(expectedPath)).willReturn(
             new FSDataInputStream(new FakeCompressionInputStream(new ByteArrayInputStream(byteOut.toByteArray)))
