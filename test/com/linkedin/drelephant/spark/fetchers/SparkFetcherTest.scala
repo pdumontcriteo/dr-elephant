@@ -19,7 +19,6 @@ package com.linkedin.drelephant.spark.fetchers
 import java.io.{File, FileOutputStream, InputStream, OutputStream}
 import java.util.Date
 
-import scala.collection.JavaConverters
 import scala.concurrent.{ExecutionContext, Future}
 
 import com.google.common.io.Files
@@ -88,6 +87,7 @@ class SparkFetcherTest extends FunSpec with Matchers {
     it("throws an exception if the log client fails") {
       val sparkFetcher = new SparkFetcher(fetcherConfigurationData) {
         override lazy val sparkConf = new SparkConf()
+          .set(SparkFetcher.SPARK_EVENT_LOG_ENABLED_KEY, "true")
         override lazy val sparkRestClient = newFakeSparkRestClient(appId, Future(restDerivedData))
         override lazy val sparkLogClient = Some(newFakeSparkLogClient(appId, Some("2"), Future { throw new Exception() }))
       }
@@ -145,21 +145,47 @@ class SparkFetcherTest extends FunSpec with Matchers {
       sparkConf.get("spark.eventLog.dir") should be("hdfs://nn1.grid.example.com:9000/logs/spark")
     }
 
+    it("allows to override SPARK_CONF_DIR and SPARK_HOME via fetcher config") {
+      val tempDir = Files.createTempDir()
+
+      val testResourceIn = getClass.getClassLoader.getResourceAsStream("spark-defaults.conf")
+      val testResourceFile = new File(tempDir, "spark-defaults.conf")
+      val testResourceOut = new FileOutputStream(testResourceFile)
+      managedCopyInputStreamToOutputStream(testResourceIn, testResourceOut)
+
+      val fetcherConfigurationData = newFakeFetcherConfigurationData(
+        Map("spark_conf_dir" -> tempDir.toString)
+      )
+
+      val sparkFetcher = new SparkFetcher(fetcherConfigurationData) {
+        override lazy val sparkUtils = new SparkUtils() {
+          override val defaultEnv = Map("SPARK_CONF_DIR" -> "/foo/bar/baz")
+        }
+      }
+
+      val sparkConf = sparkFetcher.sparkConf
+      sparkConf.get("spark.yarn.historyServer.address") should be("jh1.grid.example.com:18080")
+      sparkConf.get("spark.eventLog.enabled") should be("true")
+      sparkConf.get("spark.eventLog.compress") should be("true")
+      sparkConf.get("spark.eventLog.dir") should be("hdfs://nn1.grid.example.com:9000/logs/spark")
+    }
+
     it("throws an exception if neither SPARK_CONF_DIR nor SPARK_HOME are set") {
       val fetcherConfigurationData = newFakeFetcherConfigurationData()
       val sparkFetcher = new SparkFetcher(fetcherConfigurationData) {
         override lazy val sparkUtils = new SparkUtils() { override val defaultEnv = Map.empty[String, String] }
       }
+
       an[IllegalStateException] should be thrownBy { sparkFetcher.sparkConf }
     }
   }
 }
 
 object SparkFetcherTest {
-  import JavaConverters._
+  import scala.collection.JavaConverters._
 
-  def newFakeFetcherConfigurationData(): FetcherConfigurationData =
-    new FetcherConfigurationData(classOf[SparkFetcher].getName, new ApplicationType("SPARK"), Map.empty.asJava)
+  def newFakeFetcherConfigurationData(paramMap: Map[String, String] = Map.empty): FetcherConfigurationData =
+    new FetcherConfigurationData(classOf[SparkFetcher].getName, new ApplicationType("SPARK"), paramMap.asJava)
 
   def newFakeApplicationAttemptInfo(
     attemptId: Option[String],
