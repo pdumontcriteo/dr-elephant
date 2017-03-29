@@ -36,7 +36,6 @@ import org.apache.spark.SparkConf
 import org.glassfish.jersey.client.ClientConfig
 import org.glassfish.jersey.server.ResourceConfig
 import org.glassfish.jersey.test.{JerseyTest, TestProperties}
-import org.json4s.DefaultFormats
 import org.scalatest.{AsyncFunSpec, Matchers}
 import org.scalatest.compatible.Assertion
 
@@ -50,20 +49,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
 
     it("returns the desired data from the Spark REST API for cluster mode application") {
       import ExecutionContext.Implicits.global
-      val fakeJerseyServer = new FakeJerseyServer() {
-        override def configure(): Application = super.configure() match {
-          case resourceConfig: ResourceConfig =>
-            resourceConfig
-              .register(classOf[FetchClusterModeDataFixtures.ApiResource])
-              .register(classOf[FetchClusterModeDataFixtures.ApplicationResource])
-              .register(classOf[FetchClusterModeDataFixtures.JobsResource])
-              .register(classOf[FetchClusterModeDataFixtures.StagesResource])
-              .register(classOf[FetchClusterModeDataFixtures.ExecutorsResource])
-              .register(classOf[FetchClusterModeDataFixtures.LogsResource])
-          case config => config
-        }
-      }
-
+      val fakeJerseyServer = FetchClusterModeDataFixtures.newFakeJerseyServer()
       fakeJerseyServer.setUp()
 
       val historyServerUri = fakeJerseyServer.target.getUri
@@ -94,20 +80,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
 
     it("returns the desired data from the Spark REST API for client mode application") {
       import ExecutionContext.Implicits.global
-      val fakeJerseyServer = new FakeJerseyServer() {
-        override def configure(): Application = super.configure() match {
-          case resourceConfig: ResourceConfig =>
-            resourceConfig
-              .register(classOf[FetchClientModeDataFixtures.ApiResource])
-              .register(classOf[FetchClientModeDataFixtures.ApplicationResource])
-              .register(classOf[FetchClientModeDataFixtures.JobsResource])
-              .register(classOf[FetchClientModeDataFixtures.StagesResource])
-              .register(classOf[FetchClientModeDataFixtures.ExecutorsResource])
-              .register(classOf[FetchClientModeDataFixtures.LogsResource])
-          case config => config
-        }
-      }
-
+      val fakeJerseyServer = FetchClientModeDataFixtures.newFakeJerseyServer()
       fakeJerseyServer.setUp()
 
       val historyServerUri = fakeJerseyServer.target.getUri
@@ -138,19 +111,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
 
     it("returns the desired data from the Spark REST API for cluster mode application when http in jobhistory address") {
       import ExecutionContext.Implicits.global
-      val fakeJerseyServer = new FakeJerseyServer() {
-        override def configure(): Application = super.configure() match {
-          case resourceConfig: ResourceConfig =>
-            resourceConfig
-              .register(classOf[FetchClusterModeDataFixtures.ApiResource])
-              .register(classOf[FetchClusterModeDataFixtures.ApplicationResource])
-              .register(classOf[FetchClusterModeDataFixtures.JobsResource])
-              .register(classOf[FetchClusterModeDataFixtures.StagesResource])
-              .register(classOf[FetchClusterModeDataFixtures.ExecutorsResource])
-          case config => config
-        }
-      }
-
+      val fakeJerseyServer = FetchClusterModeDataFixtures.newFakeJerseyServer()
       fakeJerseyServer.setUp()
 
       val historyServerUri = fakeJerseyServer.target.getUri
@@ -236,7 +197,7 @@ object SparkRestClientTest {
         val t1 = t2 - 1
         val duration = 8000000L
         new ApplicationInfo(
-          APP_ID,
+          appId,
           APP_NAME,
           Seq(
             newFakeApplicationAttemptInfo(Some("2"), startTime = new Date(t2 - duration), endTime = new Date(t2)),
@@ -276,6 +237,20 @@ object SparkRestClientTest {
         } else throw new Exception()
       }
     }
+
+    def newFakeJerseyServer() = new FakeJerseyServer() {
+      override def configure(): Application = super.configure() match {
+        case resourceConfig: ResourceConfig =>
+          resourceConfig
+            .register(classOf[FetchClusterModeDataFixtures.ApiResource])
+            .register(classOf[FetchClusterModeDataFixtures.ApplicationResource])
+            .register(classOf[FetchClusterModeDataFixtures.JobsResource])
+            .register(classOf[FetchClusterModeDataFixtures.StagesResource])
+            .register(classOf[FetchClusterModeDataFixtures.ExecutorsResource])
+            .register(classOf[FetchClusterModeDataFixtures.LogsResource])
+        case config => config
+      }
+    }
   }
 
   object FetchClientModeDataFixtures {
@@ -308,7 +283,7 @@ object SparkRestClientTest {
         val t1 = t2 - 1
         val duration = 8000000L
         new ApplicationInfo(
-          APP_ID,
+          appId,
           APP_NAME,
           Seq(
             newFakeApplicationAttemptInfo(None, startTime = new Date(t2 - duration), endTime = new Date(t2)),
@@ -344,6 +319,20 @@ object SparkRestClientTest {
       @GET
       def getLogs(@PathParam("appId") appId: String): Response = {
         Response.ok(newFakeLog(appId, None)).build()
+      }
+    }
+
+    def newFakeJerseyServer() = new FakeJerseyServer() {
+      override def configure(): Application = super.configure() match {
+        case resourceConfig: ResourceConfig =>
+          resourceConfig
+            .register(classOf[FetchClientModeDataFixtures.ApiResource])
+            .register(classOf[FetchClientModeDataFixtures.ApplicationResource])
+            .register(classOf[FetchClientModeDataFixtures.JobsResource])
+            .register(classOf[FetchClientModeDataFixtures.StagesResource])
+            .register(classOf[FetchClientModeDataFixtures.ExecutorsResource])
+            .register(classOf[FetchClientModeDataFixtures.LogsResource])
+        case config => config
       }
     }
   }
