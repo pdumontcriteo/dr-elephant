@@ -47,6 +47,24 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       an[IllegalArgumentException] should be thrownBy(new SparkRestClient(new SparkConf()))
     }
 
+    it("does not fetch data from the Spark REST API for uncompleted cluster mode application") {
+      import ExecutionContext.Implicits.global
+      val fakeJerseyServer = FetchClusterModeDataFixtures.newFakeJerseyServer()
+      fakeJerseyServer.setUp()
+
+      val historyServerUri = fakeJerseyServer.target.getUri
+
+      val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"${historyServerUri.getHost}:${historyServerUri.getPort}")
+      val sparkRestClient = new SparkRestClient(sparkConf)
+
+      sparkRestClient.fetchData("uncompleted").map { restDerivedDataOpt =>
+        restDerivedDataOpt should be(None)
+      } andThen { case assertion: Try[Assertion] =>
+        fakeJerseyServer.tearDown()
+        assertion
+      }
+    }
+
     it("returns the desired data from the Spark REST API for cluster mode application") {
       import ExecutionContext.Implicits.global
       val fakeJerseyServer = FetchClusterModeDataFixtures.newFakeJerseyServer()
@@ -57,7 +75,9 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { case Some(restDerivedData) =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedDataOpt =>
+        restDerivedDataOpt.isDefined should be(true)
+        val restDerivedData = restDerivedDataOpt.get
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be (None)
@@ -88,7 +108,9 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { case Some(restDerivedData) =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedDataOpt =>
+        restDerivedDataOpt.isDefined should be(true)
+        val restDerivedData = restDerivedDataOpt.get
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be(None)
@@ -119,7 +141,9 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"http://${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { case Some(restDerivedData) =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedDataOpt =>
+        restDerivedDataOpt.isDefined should be(true)
+        val restDerivedData = restDerivedDataOpt.get
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be(None)
@@ -200,7 +224,8 @@ object SparkRestClientTest {
           appId,
           APP_NAME,
           Seq(
-            newFakeApplicationAttemptInfo(Some("2"), startTime = new Date(t2 - duration), endTime = new Date(t2)),
+            newFakeApplicationAttemptInfo(Some("2"), startTime = new Date(t2 - duration), endTime = new Date(t2),
+              completed = appId == APP_ID),
             newFakeApplicationAttemptInfo(Some("1"), startTime = new Date(t1 - duration), endTime = new Date(t1))
           )
         )
@@ -340,13 +365,14 @@ object SparkRestClientTest {
   def newFakeApplicationAttemptInfo(
     attemptId: Option[String],
     startTime: Date,
-    endTime: Date
+    endTime: Date,
+    completed: Boolean = true
   ): ApplicationAttemptInfo = new ApplicationAttemptInfo(
     attemptId,
     startTime,
     endTime,
     sparkUser = "foo",
-    completed = true
+    completed = completed
   )
 
   private val EVENT_LOG_2 = Resources.toByteArray(
