@@ -71,7 +71,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { case Some(restDerivedData) =>
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be (None)
@@ -85,7 +85,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
             SparkLogClient.findDerivedData(new ByteArrayInputStream(EVENT_LOG_2))
 
           sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID, fetchLogs = true)
-            .map { _.logDerivedData should be(Some(expectedLogDerivedData)) }
+            .map { _.get.logDerivedData should be(Some(expectedLogDerivedData)) }
       } andThen { case assertion: Try[Assertion] =>
         fakeJerseyServer.tearDown()
         assertion
@@ -115,7 +115,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { case Some(restDerivedData) =>
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be(None)
@@ -129,7 +129,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
             SparkLogClient.findDerivedData(new ByteArrayInputStream(EVENT_LOG_2))
 
           sparkRestClient.fetchData(FetchClientModeDataFixtures.APP_ID, fetchLogs = true)
-            .map { _.logDerivedData should be(Some(expectedLogDerivedData)) }
+            .map { _.get.logDerivedData should be(Some(expectedLogDerivedData)) }
       } andThen { case assertion: Try[Assertion] =>
         fakeJerseyServer.tearDown()
         assertion
@@ -158,7 +158,7 @@ class SparkRestClientTest extends AsyncFunSpec with Matchers {
       val sparkConf = new SparkConf().set("spark.yarn.historyServer.address", s"http://${historyServerUri.getHost}:${historyServerUri.getPort}")
       val sparkRestClient = new SparkRestClient(sparkConf)
 
-      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { restDerivedData =>
+      sparkRestClient.fetchData(FetchClusterModeDataFixtures.APP_ID) map { case Some(restDerivedData) =>
         restDerivedData.applicationInfo.id should be(FetchClusterModeDataFixtures.APP_ID)
         restDerivedData.applicationInfo.name should be(FetchClusterModeDataFixtures.APP_NAME)
         restDerivedData.jobDatas should not be(None)

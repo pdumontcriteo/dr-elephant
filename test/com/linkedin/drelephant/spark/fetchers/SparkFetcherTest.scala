@@ -224,7 +224,7 @@ object SparkFetcherTest {
     implicit ec: ExecutionContext
   ): SparkRestClient = {
     val sparkRestClient = Mockito.mock(classOf[SparkRestClient])
-    Mockito.when(sparkRestClient.fetchData(appId)).thenReturn(restDerivedData)
+    Mockito.when(sparkRestClient.fetchData(appId)).thenReturn(restDerivedData.map(Some(_)))
     sparkRestClient
   }
 

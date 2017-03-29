@@ -60,6 +60,7 @@ class SparkRestClient(sparkConf: SparkConf) {
         } else {
           new URI(s"http://${historyServerAddress}")
         }
+      logger.info(s">>> HISTORY SERVER ADDRESS: ${historyServerAddress}")
       require(baseUri.getPath == "")
       baseUri
     case None =>
@@ -70,7 +71,7 @@ class SparkRestClient(sparkConf: SparkConf) {
 
   def fetchData(appId: String, fetchLogs: Boolean = false)(
     implicit ec: ExecutionContext
-  ): Future[SparkRestDerivedData] = {
+  ): Future[Option[SparkRestDerivedData]] = {
     val appTarget = apiTarget.path(s"applications/${appId}")
     logger.info(s"calling REST API at ${appTarget.getUri}")
 
@@ -78,25 +79,31 @@ class SparkRestClient(sparkConf: SparkConf) {
 
     // These are pure and cannot fail, therefore it is safe to have
     // them outside of the async block.
-    val lastAttemptId = applicationInfo.attempts.maxBy {_.startTime}.attemptId
-    val attemptTarget = lastAttemptId.map(appTarget.path).getOrElse(appTarget)
+    val lastAttempt = applicationInfo.attempts.maxBy { _.startTime }
+    val attemptTarget = lastAttempt.attemptId.map(appTarget.path).getOrElse(appTarget)
 
     // Limit the scope of async.
     async {
-      val futureJobDatas = async { getJobDatas(attemptTarget) }
-      val futureStageDatas = async { getStageDatas(attemptTarget) }
-      val futureExecutorSummaries = async { getExecutorSummaries(attemptTarget) }
-      val futureLogData = if (fetchLogs) {
-        async { getLogData(attemptTarget)}
-      } else Future.successful(None)
+      if (!lastAttempt.completed) {
+        // Event logs are being processed by Spark history server and
+        // are not available for fetching at the moment.
+        None
+      } else {
+        val futureJobDatas = async { getJobDatas(attemptTarget) }
+        val futureStageDatas = async { getStageDatas(attemptTarget) }
+        val futureExecutorSummaries = async { getExecutorSummaries(attemptTarget) }
+        val futureLogData = if (fetchLogs) {
+          async { getLogData(attemptTarget)}
+        } else Future.successful(None)
 
-      SparkRestDerivedData(
-        applicationInfo,
-        await(futureJobDatas),
-        await(futureStageDatas),
-        await(futureExecutorSummaries),
-        await(futureLogData)
-      )
+        Some(SparkRestDerivedData(
+          applicationInfo,
+          await(futureJobDatas),
+          await(futureStageDatas),
+          await(futureExecutorSummaries),
+          await(futureLogData))
+        )
+      }
     }
   }
 

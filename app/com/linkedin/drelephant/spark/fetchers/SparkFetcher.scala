@@ -107,17 +107,19 @@ object SparkFetcher {
   )(
     implicit ec: ExecutionContext
   ): Future[SparkApplicationData] = async {
-    val restDerivedData = await(sparkRestClient.fetchData(
-      appId, eventLogSource == EventLogSource.Rest))
+    await(sparkRestClient.fetchData(appId, eventLogSource == EventLogSource.Rest)) match {
+      case None => throw new ElephantFetcher.NotReady()
+      case Some(restDerivedData) =>
+        val logDerivedData = eventLogSource match {
+          case EventLogSource.None => None
+          case EventLogSource.Rest => restDerivedData.logDerivedData
+          case EventLogSource.WebHdfs =>
+            val lastAttemptId = restDerivedData.applicationInfo.attempts
+              .maxBy { _.startTime }.attemptId
+            Some(await(sparkLogClient.fetchData(appId, lastAttemptId)))
+        }
 
-    val logDerivedData = eventLogSource match {
-      case EventLogSource.None => None
-      case EventLogSource.Rest => restDerivedData.logDerivedData
-      case EventLogSource.WebHdfs =>
-        val lastAttemptId = restDerivedData.applicationInfo.attempts.maxBy { _.startTime }.attemptId
-        Some(await(sparkLogClient.fetchData(appId, lastAttemptId)))
+        SparkApplicationData(appId, restDerivedData, logDerivedData)
     }
-
-    SparkApplicationData(appId, restDerivedData, logDerivedData)
   }
 }
