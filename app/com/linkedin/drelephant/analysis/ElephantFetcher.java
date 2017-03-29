@@ -32,4 +32,11 @@ public interface ElephantFetcher<T extends HadoopApplicationData> {
    */
   public T fetchData(AnalyticJob job)
       throws Exception;
+
+  /**
+   * Indicates that the {@link ElephantFetcher} cannot fetch the job at
+   * this point of time, but it might (or might not) be able to do so on
+   * subsequent calls.
+   */
+  class NotReady extends Exception {}
 }

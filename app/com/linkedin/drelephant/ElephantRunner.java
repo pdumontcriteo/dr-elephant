@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.linkedin.drelephant.analysis.AnalyticJob;
 import com.linkedin.drelephant.analysis.AnalyticJobGenerator;
+import com.linkedin.drelephant.analysis.ElephantFetcher;
 import com.linkedin.drelephant.analysis.HDFSContext;
 import com.linkedin.drelephant.analysis.HadoopSystemContext;
 import com.linkedin.drelephant.analysis.AnalyticJobGeneratorHadoop2;
@@ -187,6 +188,9 @@ public class ElephantRunner implements Runnable {
         logger.info(ExceptionUtils.getStackTrace(e));
 
         Thread.currentThread().interrupt();
+      } catch (ElephantFetcher.NotReady e) {
+        logger.error("[" + _analyticJob.getAppId() + "] is not ready to be fetched.");
+        logger.error("Add analytic job id [" + _analyticJob.getAppId() + "] into the retry list.");
       } catch (Exception e) {
         logger.error(e.getMessage());
         logger.error(ExceptionUtils.getStackTrace(e));
