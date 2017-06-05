@@ -2,10 +2,13 @@
 # --- !Ups
 
 create index yarn_app_result_i9 on yarn_app_result (severity,finish_time);
+create index yarn_app_result_i10 on yarn_app_result (queue_name,finish_time);
+
 
 # --- !Downs
 
 drop index yarn_app_result_i9 on yarn_app_result;
+drop index yarn_app_result_i10 on yarn_app_result;
 
 
 
