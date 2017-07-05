@@ -123,7 +123,7 @@ public class Application extends Controller {
   private static int _numJobsCritical = 0;
   private static int _numJobsSevere = 0;
 
-  private static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+  private static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
   /**
   * Serves the initial index.html page for the new user interface. This page contains the whole web app
@@ -1136,19 +1136,10 @@ public class Application extends Controller {
         flowPerfScore += jobPerfScore;
       }
 
+
       // Execution record
       JsonObject dataset = new JsonObject();
-
-      // TODO should make it specific to langoustine as other scheduler are not storing the date in flowExecId field
-      // Parsing the langoustine date
-      long maybeParsed;
-      try {
-        maybeParsed = sdf.parse(mrJobsList.get(mrJobsList.size() - 1).flowExecId).getTime();
-      } catch (ParseException e) {
-        logger.info("Could not parse " + mrJobsList.get(mrJobsList.size() - 1).flowExecId);
-        maybeParsed = mrJobsList.get(mrJobsList.size() - 1).finishTime;
-      }
-      dataset.addProperty("flowtime", maybeParsed);
+      dataset.addProperty("flowtime", getFlowTime(mrJobsList.get(mrJobsList.size() - 1)));
       dataset.addProperty("score", flowPerfScore);
       dataset.add("jobscores", jobScores);
 
@@ -1159,6 +1150,8 @@ public class Application extends Controller {
 
     return ok(new Gson().toJson(sortedDatasets));
   }
+
+
 
   /**
    * The data for plotting the job history graph. While plotting the job history
@@ -1241,17 +1234,7 @@ public class Application extends Controller {
 
       // Execution record
       JsonObject dataset = new JsonObject();
-
-      // TODO should make it specific to langoustine as other scheduler are not storing the date in flowExecId field
-      // Parsing the langoustine date
-      long maybeParsed;
-      try {
-        maybeParsed = sdf.parse(mrJobsList.get(mrJobsList.size() - 1).flowExecId).getTime();
-      } catch (ParseException e) {
-        logger.info("Could not parse " + mrJobsList.get(mrJobsList.size() - 1).flowExecId);
-        maybeParsed = mrJobsList.get(mrJobsList.size() - 1).finishTime;
-      }
-      dataset.addProperty("flowtime", maybeParsed);
+      dataset.addProperty("flowtime", getFlowTime(mrJobsList.get(mrJobsList.size() - 1)));
       dataset.addProperty("score", jobPerfScore);
       dataset.add("stagescores", stageScores);
 
@@ -1355,17 +1338,7 @@ public class Application extends Controller {
 
       // Execution record
       JsonObject dataset = new JsonObject();
-
-      // TODO should make it specific to langoustine as other scheduler are not storing the date in flowExecId field
-      // Parsing the langoustine date
-      long maybeParsed;
-      try {
-        maybeParsed = sdf.parse(mrJobsList.get(mrJobsList.size() - 1).flowExecId).getTime();
-      } catch (ParseException e) {
-        logger.info("Could not parse " + mrJobsList.get(mrJobsList.size() - 1).flowExecId);
-        maybeParsed = mrJobsList.get(mrJobsList.size() - 1).finishTime;
-      }
-      dataset.addProperty("flowtime", maybeParsed);
+      dataset.addProperty("flowtime", getFlowTime(mrJobsList.get(mrJobsList.size() - 1)));
       dataset.addProperty("runtime", Utils.getTotalRuntime(mrJobsList));
       dataset.addProperty("waittime", Utils.getTotalWaittime(mrJobsList));
       dataset.addProperty("resourceused", totalMemoryUsed);
@@ -1517,17 +1490,7 @@ public class Application extends Controller {
 
       // Execution record
       JsonObject dataset = new JsonObject();
-
-      // TODO should make it specific to langoustine as other scheduler are not storing the date in flowExecId field
-      // Parsing the langoustine date
-      long maybeParsed = 0;
-      try {
-        maybeParsed = sdf.parse(mrJobsList.get(mrJobsList.size() - 1).flowExecId).getTime();
-      } catch (ParseException e) {
-        logger.info("Could not parse " + mrJobsList.get(mrJobsList.size() - 1).flowExecId);
-        maybeParsed = mrJobsList.get(mrJobsList.size() - 1).finishTime;
-      }
-      dataset.addProperty("flowtime", maybeParsed);
+      dataset.addProperty("flowtime", getFlowTime(mrJobsList.get(mrJobsList.size() - 1)));
       dataset.addProperty("runtime", totalFlowRuntime);
       dataset.addProperty("waittime", totalFlowDelay);
       dataset.addProperty("resourceused", totalFlowMemoryUsed);
@@ -1540,6 +1503,30 @@ public class Application extends Controller {
     JsonArray sortedDatasets = sortJsonArray(datasets);
 
     return ok(new Gson().toJson(sortedDatasets));
+  }
+
+
+  /**
+   * Get the flowtime corresponding to the job, based on one of the triggered mr job.
+   * The flowtime will be used in the front-end as the row under the 'Flow Executions' tab (in the Flow/Job history view).
+   *
+   * As Langoustine is considering the function start date of the job as the flowExecId, this can be used as the flowTime,
+   * as this is a more useful information that the job finish time.
+   */
+  private static long getFlowTime(AppResult mrJob) {
+    long flowTime;
+
+    if ( !mrJob.scheduler.equals("langoustine") ) {
+      flowTime = mrJob.finishTime;
+    } else {
+      try {
+        flowTime = DATE_FORMAT.parse(mrJob.flowExecId).getTime();
+      } catch (ParseException e) {
+        logger.info("Could not parse " + mrJob.flowExecId);
+        flowTime = mrJob.finishTime;
+      }
+    }
+    return flowTime;
   }
 
   /**

@@ -74,8 +74,7 @@ public class LangoustineScheduler implements Scheduler {
 
   @Override
   public boolean isEmpty() {
-    boolean result = jobId == null || jobDate == null || jobWorkflow == null;
-    return result;
+    return jobId == null || jobDate == null || jobWorkflow == null;
   }
 
   @Override
