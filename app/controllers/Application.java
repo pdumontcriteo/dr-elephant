@@ -1516,7 +1516,7 @@ public class Application extends Controller {
   private static long getFlowTime(AppResult mrJob) {
     long flowTime;
 
-    if ( !mrJob.scheduler.equals("langoustine") ) {
+    if ( mrJob.scheduler == null || !mrJob.scheduler.equals("langoustine") ) {
       flowTime = mrJob.finishTime;
     } else {
       try {

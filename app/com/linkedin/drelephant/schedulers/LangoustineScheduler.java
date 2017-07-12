@@ -31,6 +31,7 @@ public class LangoustineScheduler implements Scheduler {
 
   public static final String LANGOUSTINE_JOB_ID = "com.criteo.langoustine.name";
   public static final String LANGOUSTINE_START_DATE = "com.criteo.langoustine.calc_start";
+  public static final String LANGOUSTINE_PROJECT_NAME = "com.criteo.langoustine.project_name";
 
   private String schedulerName;
   private String jobId;
@@ -46,12 +47,13 @@ public class LangoustineScheduler implements Scheduler {
 
   public LangoustineScheduler(String appId, Properties properties, SchedulerConfigurationData schedulerConfData) {
 
-    String maybeWorkflow = schedulerConfData.getParamMap().get(properties.getProperty("userName"));
+    String maybeWorkflow = properties.getProperty(LANGOUSTINE_PROJECT_NAME);
     if (maybeWorkflow == null) {
-      jobWorkflow = "all";
+      jobWorkflow = "default_langoustine";
     } else {
       jobWorkflow = maybeWorkflow;
     }
+    logger.info("Langoustine project name for application " + appId + "is : " + jobWorkflow);
 
     schedulerName = schedulerConfData.getSchedulerName();
     if (properties != null) {
@@ -93,9 +95,7 @@ public class LangoustineScheduler implements Scheduler {
   }
 
   @Override
-  public String getFlowExecId() {
-      return jobDate;
-  }
+  public String getFlowExecId() { return jobDate; }
 
   @Override
   public String getJobDefUrl() {

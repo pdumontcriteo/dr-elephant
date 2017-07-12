@@ -41,11 +41,7 @@
     <scheduler>
         <name>langoustine</name>
         <classname>com.linkedin.drelephant.schedulers.LangoustineScheduler</classname>
-        <params>
-            <bidata>datamart</bidata>
-            <bicore>datamart-core</bicore>
-            <!--<user>add new langoustine flow here</user>-->
-        </params>
+        <params></params>
 
     </scheduler>
 
