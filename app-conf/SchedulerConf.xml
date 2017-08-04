@@ -72,6 +72,15 @@
     </scheduler>
 
     <scheduler>
+        <name>langoustine</name>
+        <classname>com.criteo.drelephant.schedulers.LangoustineScheduler</classname>
+        <params>
+            <flowtimefield>flowExecId</flowtimefield>
+            <flowtimetype>yyyy-MM-dd'T'HH:mm:ss</flowtimetype>
+        </params>
+    </scheduler>
+
+    <scheduler>
        <name>no_scheduler</name>
        <classname>com.linkedin.drelephant.schedulers.NoScheduler</classname>
     </scheduler>
