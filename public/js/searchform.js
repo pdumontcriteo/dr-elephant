@@ -21,6 +21,7 @@ $(document).ready(function(){
 
   var jobId = $("#form-job-id");
   var flowExecId = $("#form-flow-exec-id");
+  var jobDefId = $("#form-job-def-id");
   var user = $("#form-username");
   var queueName = $("#form-queue-name");
   var jobtypeEnable = $("#form-job-type-enable");
@@ -62,6 +63,7 @@ $(document).ready(function(){
 
   var updateForm = function(){
     if(jobId.val()) {
+      jobDefId.prop('disabled', true);
       flowExecId.prop('disabled', true);
       user.prop('disabled', true);
       queueName.prop('disabled', true);
@@ -75,6 +77,20 @@ $(document).ready(function(){
       finishTimeEndDate.prop('disabled', true);
     } else if(flowExecId.val()) {
       jobId.prop('disabled', true);
+      jobDefId.prop('disabled', true);
+      user.prop('disabled', true);
+      queueName.prop('disabled', true);
+      severity.prop('disabled', true);
+      analysis.prop('disabled', true);
+      jobtype.prop('disabled', true);
+      jobtypeEnable.prop('disabled', true);
+      severityEnable.prop('disabled', true);
+      datetimeEnable.prop('disabled', true);
+      finishTimeBeginDate.prop('disabled', true);
+      finishTimeEndDate.prop('disabled', true);
+    } else if (jobDefId.val()) {
+      jobId.prop('disabled', true);
+      flowExecId.prop('disabled', true);
       user.prop('disabled', true);
       queueName.prop('disabled', true);
       severity.prop('disabled', true);
@@ -88,6 +104,7 @@ $(document).ready(function(){
     }
     else{
       jobId.prop('disabled', false);
+      jobDefId.prop('disabled', false);
       flowExecId.prop('disabled', false);
       jobtypeEnable.prop('disabled', false);
       severityEnable.prop('disabled', false);
@@ -120,6 +137,7 @@ $(document).ready(function(){
   }
   jobId.on("propertychange keyup input paste", updateForm);
   flowExecId.on("propertychange keyup input paste", updateForm);
+  jobDefId.on("propertychange keyup input paste", updateForm);
   jobtypeEnable.change(updateForm);
   severityEnable.change(updateForm);
   datetimeEnable.change(updateForm);
