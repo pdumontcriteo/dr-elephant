@@ -205,6 +205,8 @@ trait SparkUtils {
     } catch {
       case e: ClassNotFoundException => None
       case e: IllegalArgumentException => None
+      case e: NoClassDefFoundError => None
+      case e: UnsatisfiedLinkError => None
     }
     codec.getOrElse(throw new IllegalArgumentException(s"Codec [$codecName] is not available. "))
   }
