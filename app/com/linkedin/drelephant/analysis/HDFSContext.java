@@ -40,6 +40,9 @@ public final class HDFSContext {
 
   /**
    * Captures the HDFS Block Size
+   * This is the default block size. Even if applications may override it, it is not the most common case,
+   * and it will just raise a false negative in file limits.
+   * Same about the blocksizes of different file systems. We decide to choose the lowest one.
    */
   public static void load() {
     try {
