@@ -27,7 +27,11 @@ import java.io.InputStream;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import javax.script.ScriptEngine;
@@ -36,19 +40,17 @@ import javax.script.ScriptException;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-import org.apache.hadoop.conf.Configuration;
 import models.AppResult;
 import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.log4j.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.*;
+import play.api.Play;
+import play.libs.Scala;
 
 
 /**
@@ -82,7 +84,8 @@ public final class Utils {
   public static Document loadXMLDoc(String filePath) {
     InputStream instream = null;
     logger.info("Loading configuration file " + filePath);
-    instream = ClassLoader.getSystemClassLoader().getResourceAsStream(filePath);
+
+    instream = Scala.orNull(Play.current().resourceAsStream(filePath));
 
     if (instream == null) {
       logger.info("Configuation file not present in classpath. File:  " + filePath);
