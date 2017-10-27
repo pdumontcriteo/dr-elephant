@@ -1,3 +1,6 @@
+### Criteo Fork specific build information
+[![Build Status](https://api.travis-ci.org/criteo-forks/dr-elephant.svg)](https://travis-ci.org/criteo-forks/dr-elephant/)
+
 # Dr. Elephant
 
 [![Build Status](https://api.travis-ci.org/linkedin/dr-elephant.svg)](https://travis-ci.org/linkedin/dr-elephant/)
