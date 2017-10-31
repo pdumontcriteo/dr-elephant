@@ -68,6 +68,13 @@ trait SparkUtils {
           (FileSystem.get(uri, hadoopConfiguration), new Path(uri.getPath))
         case Some(uri) if uri.getScheme == "hdfs" =>
           (FileSystem.get(new URI(s"webhdfs://${uri.getHost}:${DFS_HTTP_PORT}${uri.getPath}"), hadoopConfiguration), new Path(uri.getPath))
+        case Some(uri) if uri.getScheme == "viewfs" =>
+          val fs = FileSystem.get(uri, hadoopConfiguration)
+          val path = new Path(uri)
+          //In case of federation this will resolve to the correct hdfs
+          val realUri = fs.resolvePath(path).toUri
+          val webfsUri = new URI(s"webhdfs://${realUri.getHost}:${DFS_HTTP_PORT}${realUri.getPath}")
+          (FileSystem.get(webfsUri, hadoopConfiguration), new Path(realUri.getPath))
         case Some(uri) =>
           val nameNodeAddress
           = hadoopUtils.findHaNameNodeAddress(hadoopConfiguration)

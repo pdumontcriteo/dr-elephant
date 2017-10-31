@@ -16,11 +16,13 @@
 
 package com.linkedin.drelephant.analysis;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
-import java.io.IOException;
 
 
 /**
@@ -38,14 +40,30 @@ public final class HDFSContext {
 
   /**
    * Captures the HDFS Block Size
+   * This is the default block size. Even if applications may override it, it is not the most common case,
+   * and it will just raise a false negative in file limits.
+   * Same about the blocksizes of different file systems. We decide to choose the lowest one.
    */
   public static void load() {
     try {
-      HDFS_BLOCK_SIZE = FileSystem.get(new Configuration()).getDefaultBlockSize(new Path("/"));
+      HDFS_BLOCK_SIZE = minOfChildSystemsBlockSize(FileSystem.get(new Configuration()));
     } catch (IOException e) {
       logger.error("Error getting FS Block Size!", e);
     }
 
     logger.info("HDFS BLock size: " + HDFS_BLOCK_SIZE);
+  }
+
+  private static long minOfChildSystemsBlockSize(FileSystem fs) {
+    FileSystem[] childFs = fs.getChildFileSystems();
+    if (childFs != null) {
+      Long[] sizes = new Long[childFs.length];
+      for (int i = 0; i < childFs.length; i++) {
+        sizes[i] = minOfChildSystemsBlockSize(childFs[i]);
+      }
+      return Collections.min(Arrays.asList(sizes));
+    } else {
+      return fs.getDefaultBlockSize(new Path("/"));
+    }
   }
 }
