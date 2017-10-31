@@ -39,7 +39,7 @@ object Dependencies {
     hadoopVersion = System.getProperties.getProperty(HADOOP_VERSION)
   }
 
-  var sparkVersion = "1.4.0"
+  var sparkVersion = "2.1.0"
   if (System.getProperties.getProperty(SPARK_VERSION) != null) {
     sparkVersion = System.getProperties.getProperty(SPARK_VERSION)
   }
@@ -58,6 +58,13 @@ object Dependencies {
       ExclusionRule(organization = "net.razorvine")
       )
   }
+
+  val sparkSql = "org.apache.spark" % "spark-sql_2.10" % sparkVersion excludeAll(
+    ExclusionRule(organization = "com.typesafe.akka"),
+    ExclusionRule(organization = "org.apache.avro"),
+    ExclusionRule(organization = "org.apache.hadoop"),
+    ExclusionRule(organization = "net.razorvine")
+  )
 
   // Dependency coordinates
   var requiredDep = Seq(
@@ -94,7 +101,7 @@ object Dependencies {
     "org.apache.httpcomponents" % "httpclient" % "4.5.2",
     "org.scalatest" %% "scalatest" % "3.0.0" % Test
 
-  ) :+ sparkExclusion
+  ) :+ sparkExclusion :+ sparkSql
 
   var dependencies = Seq(javaJdbc, javaEbean, cache)
   dependencies ++= requiredDep
