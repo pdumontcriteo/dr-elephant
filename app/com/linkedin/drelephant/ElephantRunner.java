@@ -16,6 +16,7 @@
 
 package com.linkedin.drelephant;
 
+import com.criteo.drelephant.heuristics.GarmadonTransferHeuristic;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.linkedin.drelephant.analysis.AnalyticJob;
 import com.linkedin.drelephant.analysis.AnalyticJobGenerator;
@@ -58,6 +59,7 @@ public class ElephantRunner implements Runnable {
   private static final String RETENTION_PERIOD_DAY_KEY = "drelephant.analysis.purge.retention.period";
   private static final String PURGE_INTERVAL_SECOND_KEY = "drelephant.analysis.purge.interval";
   private static final String PURGE_BATCH_SIZE_KEY = "drelephant.analysis.purge.batch.size";
+  private static final String GARMADON_TRANSFER_INTERVAL_SECOND_KEY = "drelephant.analysis.garmadon.transfer.interval";
 
   private AtomicBoolean _running = new AtomicBoolean(true);
   private long lastRun;
@@ -69,6 +71,7 @@ public class ElephantRunner implements Runnable {
   private AnalyticJobGenerator _analyticJobGenerator;
 
   private ScheduledExecutorService _purgeScheduler;
+  private ScheduledExecutorService _garmadonTransferScheduler;
 
   private void loadGeneralConfiguration() {
     Configuration configuration = ElephantContext.instance().getGeneralConf();
@@ -108,6 +111,7 @@ public class ElephantRunner implements Runnable {
           loadGeneralConfiguration();
           loadAnalyticJobGenerator();
           ElephantContext.init();
+          setupGarmadonTransferHeuristic();
 
           // Initialize the metrics registries.
           MetricsController.init();
@@ -187,6 +191,21 @@ public class ElephantRunner implements Runnable {
       logger.info("Purge scheduled to remove results of jobs older than " + retentionPeriodDay + " days every " + purgeIntervalSecond + " seconds");
     }
 
+  }
+
+  private void setupGarmadonTransferHeuristic() {
+
+    Configuration configuration = ElephantContext.instance().getGeneralConf();
+
+    final long garmadonTransfertIntervalSecond = Utils.getNonNegativeLong(configuration,
+            GARMADON_TRANSFER_INTERVAL_SECOND_KEY, 60);
+
+    _garmadonTransferScheduler = new ScheduledThreadPoolExecutor(1);
+
+    _garmadonTransferScheduler.scheduleAtFixedRate(new Runnable() {
+      @Override
+      public void run() {GarmadonTransferHeuristic.transfer();}
+    }, 60, garmadonTransfertIntervalSecond, TimeUnit.SECONDS);
   }
 
   private class ExecutorJob implements Runnable {
