@@ -23,6 +23,7 @@ CREATE TABLE garmadon_yarn_app_heuristic_result (
   severity            TINYINT(2)    UNSIGNED NOT NULL       COMMENT 'The heuristic severity ranging from 0(LOW) to 4(CRITICAL)',
   score               MEDIUMINT(9)  UNSIGNED DEFAULT 0      COMMENT 'The heuristic score for the application. score = severity * number_of_tasks(map/reduce) where severity not in [0,1], otherwise score = 0',
   ready               BIT           NOT NULL DEFAULT 0      COMMENT 'Indicate if it is ready to be inserted in dr-elephant heuristics',
+  read_times          TINYINT(2)    UNSIGNED DEFAULT 0      COMMENT 'Number of time the value has been read',
 
   PRIMARY KEY (id)
 );

@@ -16,6 +16,8 @@ import java.util.List;
 public class GarmadonTransferHeuristic {
     private static final Logger LOGGER = LoggerFactory.getLogger(GarmadonTransferHeuristic.class);
 
+    private static final Integer MAX_READ_TIMES = 15;
+
     private static final String TABLENAME_PREFIX = "garmadon_";
     private static final String HEURISTIC_RESULT_TABLENAME = TABLENAME_PREFIX + "yarn_app_heuristic_result";
     private static final String HEURISTIC_RESULT_DETAILS_TABLENAME = TABLENAME_PREFIX + "yarn_app_heuristic_result_details";
@@ -29,19 +31,65 @@ public class GarmadonTransferHeuristic {
     private static final String SELECT_HEURISTIC_RESULT_DETAILS_SQL = "SELECT * FROM " + HEURISTIC_RESULT_DETAILS_TABLENAME
             + " WHERE yarn_app_heuristic_result_id = :yarn_app_heuristic_result_id";
     private static final String DELETE_HEURISTIC_RESULT_DETAILS_SQL = "DELETE FROM " + HEURISTIC_RESULT_DETAILS_TABLENAME
-            + " WHERE yarn_app_heuristic_result_id = :yarn_app_heuristic_result_id";
+            + " WHERE yarn_app_heuristic_result_id in ("
+            + " SELECT id from " + HEURISTIC_RESULT_TABLENAME
+            + " WHERE yarn_app_result_id = :yarn_app_result_id)";
+
+    private static final String UPDATE_READ_TIMES_APP_RESULT_SQL = "UPDATE " + HEURISTIC_RESULT_TABLENAME
+            + " SET read_times = read_times + 1"
+            + " WHERE yarn_app_result_id = :yarn_app_result_id";
+    private static final String GET_MAX_READ_TIMES_APP_RESULT_SQL = "SELECT MAX(read_times) AS max_read_times FROM "
+            + HEURISTIC_RESULT_TABLENAME
+            + " WHERE yarn_app_result_id = :yarn_app_result_id";
 
     public static void transfer() {
         // Select all app in garmadon table
-        LOGGER.debug("Select all distinct ready yarn_app_result_id from {}", HEURISTIC_RESULT_TABLENAME);
-        List<SqlRow> rows = Ebean.createSqlQuery(SELECT_ALL_DISTINCT_APP_SQL).findList();
+        try {
+            LOGGER.debug("Select all distinct ready yarn_app_result_id from {}", HEURISTIC_RESULT_TABLENAME);
+            List<SqlRow> rows = Ebean.createSqlQuery(SELECT_ALL_DISTINCT_APP_SQL).findList();
 
-        for (SqlRow row : rows) {
-            String yarn_app_result_id = row.getString("yarn_app_result_id");
-            AppResult appResult = Ebean.find(AppResult.class, yarn_app_result_id);
-            if (appResult != null) {
-                LOGGER.info("Insert data for {}", yarn_app_result_id);
-                insertData(appResult, yarn_app_result_id);
+            for (SqlRow row : rows) {
+                String yarn_app_result_id = row.getString("yarn_app_result_id");
+                AppResult appResult = Ebean.find(AppResult.class, yarn_app_result_id);
+                if (appResult != null) {
+                    LOGGER.info("Insert data for {}", yarn_app_result_id);
+                    insertData(appResult, yarn_app_result_id);
+                } else {
+                    treatResultNotInDrElephantDb(yarn_app_result_id);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error occurred while reading garmadon heuristics", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void treatResultNotInDrElephantDb(String yarn_app_result_id) {
+        SqlRow rowMaxRead = Ebean.createSqlQuery(GET_MAX_READ_TIMES_APP_RESULT_SQL)
+                .setParameter("yarn_app_result_id", yarn_app_result_id)
+                .findUnique();
+        Transaction transaction = null;
+        try {
+            transaction = Ebean.beginTransaction();
+            if (rowMaxRead.getInteger("max_read_times") > MAX_READ_TIMES) {
+
+                // Delete this app result
+                LOGGER.info("Delete data from {} because still not in dr-elephant after {} times",
+                        yarn_app_result_id, MAX_READ_TIMES);
+                deleteData(yarn_app_result_id);
+            } else {
+                // Increment number of time we read this app result
+                Ebean.createSqlUpdate(UPDATE_READ_TIMES_APP_RESULT_SQL)
+                        .setParameter("yarn_app_result_id", yarn_app_result_id)
+                        .execute();
+            }
+            transaction.commit();
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error occurred while deleting useless garmadon heuristics", e);
+            throw new RuntimeException(e);
+        } finally {
+            if (transaction != null) {
+                transaction.end();
             }
         }
     }
@@ -89,13 +137,16 @@ public class GarmadonTransferHeuristic {
 
             appResult.yarnAppHeuristicResults.add(appHeuristicResult);
             worstSeverity = Severity.max(worstSeverity, appHeuristicResult.severity);
-
-            LOGGER.debug("Delete yarn_app_heuristic_result_id {} on {}", id, HEURISTIC_RESULT_DETAILS_TABLENAME);
-            Ebean.createSqlUpdate(DELETE_HEURISTIC_RESULT_DETAILS_SQL)
-                    .setParameter("yarn_app_heuristic_result_id", id)
-                    .execute();
         }
         appResult.severity = worstSeverity;
+        deleteData(yarn_app_result_id);
+    }
+
+    private static void deleteData(String yarn_app_result_id) {
+        LOGGER.debug("Delete yarn_app_result_id {} on {}", yarn_app_result_id, HEURISTIC_RESULT_DETAILS_TABLENAME);
+        Ebean.createSqlUpdate(DELETE_HEURISTIC_RESULT_DETAILS_SQL)
+                .setParameter("yarn_app_result_id", yarn_app_result_id)
+                .execute();
         LOGGER.debug("Delete yarn_app_result_id {} on {}", yarn_app_result_id, HEURISTIC_RESULT_TABLENAME);
         Ebean.createSqlUpdate(DELETE_HEURISTIC_RESULT_SQL)
                 .setParameter("yarn_app_result_id", yarn_app_result_id)
