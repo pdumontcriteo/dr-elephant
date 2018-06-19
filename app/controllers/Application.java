@@ -796,12 +796,18 @@ public class Application extends Controller {
     Html page = null;
     String title = "Help";
     if (topic != null && !topic.isEmpty()) {
+      topic = trimHeuristicName(topic);
       // check if it is a heuristic help
       page = ElephantContext.instance().getHeuristicToView().get(topic);
 
       // check if it is a metrics help
       if (page == null) {
         page = getMetricsNameView().get(topic);
+      }
+
+      // Garmadon heuristics
+      if (page == null) {
+        page = ElephantContext.instance().getGarmadonHeuristicHelps().get(topic);
       }
 
       if (page != null) {
@@ -813,6 +819,14 @@ public class Application extends Controller {
       return ok(helpPage.render(title, page));
     }
     return ok(oldHelpPage.render(title, page));
+  }
+
+  public static String trimHeuristicName(String heuristicName) {
+    int idx = heuristicName.indexOf('@');
+    if (idx > -1) {
+      heuristicName = heuristicName.substring(0, idx);
+    }
+    return heuristicName;
   }
 
   /**
