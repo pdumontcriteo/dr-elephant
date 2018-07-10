@@ -26,6 +26,11 @@
             <a href="@routes.Application.oldHelp()?topic=@Metrics.RUNTIME.getText()">Run Time</a><br>
             <a href="@routes.Application.oldHelp()?topic=@Metrics.WAIT_TIME.getText()">Wait Time</a><br>
             </br>
+            <div class="list-group-item-heading">GARMADON METRICS</div>
+            @for((heuristicName, htmlHelp) <- com.linkedin.drelephant.ElephantContext.instance().getGarmadonHeuristicHelps()) {
+                <a href="@routes.Application.oldHelp()?topic=@helper.urlEncode(heuristicName)">@heuristicName</a><br>
+            }
+            </br>
             @for((appTypeName, heuristicList) <- com.linkedin.drelephant.ElephantContext.instance().getAllHeuristicNames()) {
                 <div class="list-group-item-heading">@appTypeName</div>
                 @for(heuristic <-heuristicList) {

@@ -16,6 +16,8 @@
 
 package com.linkedin.drelephant;
 
+import com.avaje.ebean.Ebean;
+import com.avaje.ebean.SqlRow;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.linkedin.drelephant.analysis.ApplicationType;
@@ -59,6 +61,7 @@ import play.api.templates.Html;
  */
 public class ElephantContext {
   private static final Logger logger = Logger.getLogger(ElephantContext.class);
+  private static final String SELECT_HEURISTIC_HELP_SQL = "SELECT * FROM garmadon_heuristic_help";
   private static ElephantContext INSTANCE;
 
   private static final String AGGREGATORS_CONF = "AggregatorConf.xml";
@@ -408,5 +411,17 @@ public class ElephantContext {
 
   public Map<String, Html> getHeuristicToView() {
     return ImmutableMap.copyOf(_heuristicToView);
+  }
+
+  public Map<String, Html> getGarmadonHeuristicHelps() {
+    List<SqlRow> rows = Ebean.createSqlQuery(SELECT_HEURISTIC_HELP_SQL)
+            .findList();
+    Map<String, Html> result = new HashMap<String, Html>();
+    for (SqlRow row : rows) {
+      String heuristic_id = row.getString("heuristic_id");
+      Html htmlHelp = Html.apply(row.getString("help_html"));
+      result.put(heuristic_id, htmlHelp);
+    }
+    return result;
   }
 }
