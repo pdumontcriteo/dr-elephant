@@ -90,7 +90,7 @@
         <br>
         <div>
           @for(yarnAppHeuristicResult <- result.yarnAppHeuristicResults) {
-            <a href="#@yarnAppHeuristicResult.heuristicName.replace(" ", "")" class="label label-@yarnAppHeuristicResult.severity.getBootstrapColor">@controllers.Application.trimHeuristicName(@yarnAppHeuristicResult.heuristicName)</a>
+            <a href="#@yarnAppHeuristicResult.heuristicName.replace(" ", "")" class="label label-@yarnAppHeuristicResult.severity.getBootstrapColor">@controllers.Application.trimHeuristicName(yarnAppHeuristicResult.heuristicName)</a>
           }
         </div>
       </p>
