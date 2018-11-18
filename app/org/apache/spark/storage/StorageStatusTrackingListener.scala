@@ -96,7 +96,9 @@ class StorageStatusTrackingListener extends SparkListener {
       val blockManagerId = blockManagerAdded.blockManagerId
       val executorId = blockManagerId.executorId
       val maxMem = blockManagerAdded.maxMem
-      val storageStatus = new StorageStatus(blockManagerId, maxMem)
+      val maxOnHeapMem = blockManagerAdded.maxOnHeapMem
+      val maxOffHeapMem = blockManagerAdded.maxOffHeapMem
+      val storageStatus = new StorageStatus(blockManagerId, maxMem, maxOnHeapMem, maxOffHeapMem)
       executorIdToStorageStatus(executorId) = storageStatus
     }
   }
